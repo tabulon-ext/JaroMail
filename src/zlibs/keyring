@@ -24,6 +24,21 @@
 # pass wrapper to set all env
 _pass() {
 	fn pass $*
+	_pass_tty=""
+	if [[ -t 0 ]]; then
+		_pass_tty=$(tty)
+	elif [[ -n "$GPG_TTY" ]]; then
+		_pass_tty="$GPG_TTY"
+	elif [[ -n "$TTY" ]]; then
+		_pass_tty="$TTY"
+	else
+		_pass_tty=$( { tty < /dev/tty } 2>/dev/null )
+	fi
+	[[ -n "$_pass_tty" && "$_pass_tty" != "not a tty" ]] && {
+		export GPG_TTY=$_pass_tty
+		command -v gpg-connect-agent >/dev/null 2>&1 &&
+			gpg-connect-agent updatestartuptty /bye >/dev/null 2>&1
+	}
 	PASSWORD_STORE_DIR=$PASSWORD_STORE_DIR pass $*
 }
 
@@ -140,11 +155,12 @@ new_password() {
             # USE PASS
             if [[ $PASS = 1 ]]; then
                 act "using pass for password-store"
-                print "$password\n" | _pass insert -e email/${email}
+                print -r -- "$password" | _pass insert -e -f email/${email}
                 if [[ $? = 0 ]]; then
                     notice "New password saved in password-store"
                 else
                     error "Error saving password in password-store"
+                    return 1
                 fi
 
             # USE GNOME KEYRING
@@ -159,6 +175,7 @@ new_password() {
                     notice "New password saved in secret-tool"
                 else
                     error "Error saving password in secret-tool"
+                    return 1
                 fi
 
             elif [ "$GNOMEKEY" = "1" ]; then
@@ -175,6 +192,7 @@ EOF
                   notice "New password saved in GNOME keyring"
               else
                   error "Error saving password in GNOME keyring"
+                  return 1
               fi
             fi
             ;;

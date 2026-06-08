@@ -23,6 +23,39 @@
 
 
 ###################
+
+cmd_addr_list() {
+    search_addressbook ${option_params}
+}
+
+cmd_complete() {
+    complete ${option_params}
+    exitcode=$?
+}
+
+cmd_isknown() {
+    sender_isknown ${option_params}
+    exitcode=$?
+}
+
+cmd_learn() {
+    learn ${option_params}
+    exitcode=$?
+}
+
+cmd_import() {
+    import ${option_params}
+    exitcode=$?
+}
+
+cmd_export() {
+    export_vcard ${option_params}
+}
+
+cmd_abook() {
+    edit_abook ${option_params}
+    exitcode=$?
+}
 # Jaro Brother DB
 create_addressbook() {
     # $ADDRESSBOOK is set in jaro
@@ -99,48 +132,78 @@ lookup_email() {
     return $?
 }
 
+complete_groups() {
+    fn complete_groups $*
+
+    _needle="${1:l}"
+    [[ -d "$MAILDIRS/Groups" ]] || return 1
+
+    find "$MAILDIRS/Groups" -type f | awk -v needle="$_needle" '
+{
+    path=$0
+    name=path
+    sub(/^.*\//, "", name)
+    pseudo=name "@jaromail.group"
+    searchable=tolower(name " " pseudo)
+    if (needle != "" && index(searchable, needle) == 0) {
+        next
+    }
+
+    count=0
+    while ((getline line < path) > 0) {
+        if (line ~ /^#/ || line ~ /^[[:space:]]*$/) {
+            continue
+        }
+        count++
+    }
+    close(path)
+
+    printf "%s\tGroup %s (%d recipients)\n", pseudo, name, count
+    found=1
+}
+END {
+    exit found ? 0 : 1
+}'
+}
+
 complete() {
 	fn complete $*
 	req=(list)
 	ckreq || return 1
 
     # completion on configured groups
-    { test -r "$MAILDIRS/Groups" } && {
+    { test -d "$MAILDIRS/Groups" } && {
         if [[ "$1" =~ "group/" ]]; then
             func "completion will look into groups"
             needle="${1[(ws:/:)2]}"
-            if [ "$needle" = "" ]; then
-                act "Listing all mailout groups"
-                matches=`${=find} "$MAILDIRS/Groups" -type f`
-            else
-                act "Searching for \"$needle\" in mailout groups"
-                matches=`${=find} "$MAILDIRS/Groups" -type f -name \"*$needle*\"`
-            fi
-
-            print "Groups: `print $matches | wc -l` matches"
-            print
-            for i in ${(f)matches}; do
-                gr=`basename $i`
-                print "$gr@jaromail.group\t`wc -l < $i` recipients"
-            done
-            return 0
+            complete_groups "$needle"
+            return $?
         fi
     }
 
     act "Searching for \"$1\" in addressbook $list"
     abook --datafile "${MAILDIRS}/${ADDRESSBOOK}" --mutt-query "$1"
+    abook_res=$?
+
+    complete_groups "$1"
+    groups_res=$?
+
+    [[ $abook_res = 0 || $groups_res = 0 ]]
     return $?
 }
 
 sender_isknown() {
 	fn sender_isknown $*
 	local e_from=""
+    local _mail_input="${body:-}"
+    [[ -z "${_mail_input}" ]] && _mail_input="$(cat)"
 	if command -v maddr > /dev/null; then
+		mblaze_ensure
 		local email_regex="([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})"
-		e_from=`echo $body | maddr -h 'from' - | grep -oP "$email_regex"`
+		e_from=`print - "${_mail_input}" | maddr -h 'from' - | grep -oP "$email_regex"`
 		e_from=${e_from:l}
 	else
-		local head="`awk '
+		local head="`print - "${_mail_input}" | awk '
 { print $0 }
 /^$/ { exit }' | ${WORKDIR}/bin/fetchaddr -x From -a`"
 		e_from="${head[(ws:,:)1]:l}"

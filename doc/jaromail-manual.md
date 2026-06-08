@@ -970,6 +970,44 @@ Will extract all addresses found in unsorted (the maildir collecting all
 non-mailinglist emails in which we are not an explicit recipient) and
 put them into our blacklist.
 
+### Private recipient groups
+
+You can define reusable local recipient lists in `Mail/Groups/` and
+send to them by using the pseudo-address `groupname@jaromail.group`.
+
+Create a group file, for example `Mail/Groups/team`, with one recipient
+per line:
+
+``` example
+#mode individual
+Alice <alice@example.org>
+Bob <bob@example.org>
+```
+
+Blank lines and comments are ignored. Recipients may be written either
+as bare addresses or as display names with addresses in angle brackets.
+Duplicate addresses are removed case-insensitively. If any non-comment
+line does not contain a valid email address, the message is not queued
+and is moved to `postponed`.
+
+Then compose to the group:
+
+``` example
+jaro compose team@jaromail.group
+```
+
+Group delivery modes are controlled by the first line:
+
+- `#mode individual` (default): one message per recipient, recipients do
+  not see each other.
+- `#mode carboncopy` or `#mode cc`: one message with all recipients in
+  `To:` and `Reply-To:` set to sender address.
+- `#mode bcc`: one message with hidden recipients (`To:
+  undisclosed-recipients:;`) and all recipients in `Bcc:`.
+
+This behavior is implemented in the queueing path, so it also applies
+when messages are piped and queued from stdin.
+
 ### Export to VCard and other formats
 
 VCard is an exchange format useful to interface with other addressbook
@@ -1179,27 +1217,5 @@ notice are preserved on all copies.
 [^1]: The Mutt configuration manual is found on
     <http://www.mutt.org/doc/manual> or simply typing \'man mutt\' in a
     console terminal.
-
-[^2]: <http://cr.yp.to/proto/maildir.html>
-
-    What this virtuous, sometimes very cryptical man is trying to say
-    here is that the Maildir format in its simplicity of implementation
-    represents an extremely reliable way to retreive and store emails
-    without the risk of losing any if the Internet connection goes down.
-
-    While skipping over the internal details of this storage system,
-    which basically consists in plain text files saved into
-    sub-directories, we will have a look at some very interesting
-    features that Jaro Mail can offer to its users and to the even
-    larger audience of Maildir format users.
-
-[^3]: The keyring is encrypted using weak symmetric encryption via
-    GnuPG, the only protection for the data inside then is the password
-    memorized by the used.
-
-    To explicitly change a password one can operate the default keyring
-    manager or use the command **jaro passwd** (and specify other
-    acconts using **-a accountname**)) which will prompt to set for a
-    new password even if an old one is known.
 
 [^4]: <http://tomb.dyne.org>
